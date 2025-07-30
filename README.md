@@ -1,24 +1,24 @@
 # BilanciAI Pro
 
-BilanciAI Pro es una aplicación web para analizar estados financieros. Permite cargar archivos en formato **PDF**, **CSV**, **TXT** o **Excel** y genera métricas e indicadores clave.
+BilanciAI Pro è un'applicazione web per analizzare i bilanci aziendali. Consente di caricare file in formato **PDF**, **CSV**, **TXT** o **Excel** e genera metriche e indicatori chiave.
 
-## Funcionalidades principales
+## Funzionalità principali
 
-- Extracción de datos desde archivos de diferentes formatos.
-- Cálculo de métricas como ingresos totales, EBITDA y margen neto.
-- Visualización de gráficos con histórico de ingresos, costos y liquidez.
-- Exportación de resultados a PDF, Excel o JSON.
-- Funcionamiento offline mediante *Service Worker* (cuando se utiliza `sw.js`).
+- Estrazione dei dati da file di diversi formati.
+- Calcolo di metriche come ricavi totali, EBITDA e margine netto.
+- Visualizzazione di grafici con lo storico di ricavi, costi e liquidità.
+- Esportazione dei risultati in PDF, Excel o JSON.
+- Funzionamento offline tramite *Service Worker* (quando si usa `sw.js`).
 
-## Uso
+## Utilizzo
 
-1. Clona este repositorio o descarga los archivos.
-2. Abre `webapp.html` en tu navegador web.
-3. Arrastra el archivo de tu balance o selecciónalo manualmente.
-4. Revisa las métricas y las recomendaciones generadas.
+1. Clona questo repository o scarica i file.
+2. Apri `webapp.html` nel tuo browser.
+3. Trascina il file del bilancio o selezionalo manualmente.
+4. Controlla le metriche e le raccomandazioni generate.
 
-No se requieren dependencias ni compilación adicional: todo el código está en los archivos `webapp.js` y `webapp.css` incluidos.
+Non sono necessarie dipendenze o compilazioni aggiuntive: tutto il codice è contenuto nei file `webapp.js` e `webapp.css` inclusi.
 
-## Licencia
+## Licenza
 
-Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo [`LICENSE`](LICENSE) para más información.
+Questo progetto è distribuito sotto licenza MIT. Consulta il file [`LICENSE`](LICENSE) per maggiori informazioni.
