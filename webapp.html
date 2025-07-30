@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BilanciAI Pro - Analisi Bilanci</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/webapp.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="logo-icon">📊</span>
+                    BilanciAI Pro
+                </h1>
+                <div class="status-indicator">
+                    <span class="status-dot offline"></span>
+                    <span class="status-text">Offline Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section" id="upload-section">
+                <div class="upload-card">
+                    <div class="upload-icon">📊</div>
+                    <h2>Carica i tuoi Dati Finanziari</h2>
+                    <p>Trascina qui il file PDF/CSV/TXT del bilancio o clicca per selezionarlo</p>
+                    
+                    <div class="file-input-wrapper">
+                        <input type="file" id="file-input" accept=".pdf,.csv,.txt,.xlsx,.xls" class="file-input">
+                        <label for="file-input" class="file-input-label">
+                            Seleziona File
+                        </label>
+                    </div>
+                    
+                    <div class="upload-info">
+                        <p>✅ Supporta PDF, CSV, TXT, Excel fino a 10MB</p>
+                        <p>🔒 I tuoi dati rimangono privati</p>
+                        <p>⚡ Analisi in tempo reale</p>
+                    </div>
+                    
+                    <div class="format-help">
+                        <h4>Formati Supportati:</h4>
+                        <div class="format-grid">
+                            <div class="format-item">
+                                <span class="format-icon">📄</span>
+                                <div>
+                                    <strong>PDF</strong>
+                                    <p>Bilanci in formato PDF standard</p>
+                                </div>
+                            </div>
+                            <div class="format-item">
+                                <span class="format-icon">📊</span>
+                                <div>
+                                    <strong>CSV</strong>
+                                    <p>Dati strutturati con intestazioni</p>
+                                </div>
+                            </div>
+                            <div class="format-item">
+                                <span class="format-icon">📝</span>
+                                <div>
+                                    <strong>TXT</strong>
+                                    <p>Bilanci in formato testo</p>
+                                </div>
+                            </div>
+                            <div class="format-item">
+                                <span class="format-icon">📈</span>
+                                <div>
+                                    <strong>Excel</strong>
+                                    <p>Fogli di calcolo .xlsx/.xls</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analysis Section -->
+            <section class="analysis-section" id="analysis-section" style="display: none;">
+                <!-- Metrics Overview -->
+                <div class="metrics-overview">
+                    <h2>Metriche Chiave</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-icon">💰</div>
+                            <div class="metric-content">
+                                <h3>Ricavi Totali</h3>
+                                <p class="metric-value" id="total-revenue">€ 0</p>
+                                <span class="metric-change positive" id="revenue-change">+0%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card">
+                            <div class="metric-icon">📈</div>
+                            <div class="metric-content">
+                                <h3>EBITDA</h3>
+                                <p class="metric-value" id="ebitda">€ 0</p>
+                                <span class="metric-change" id="ebitda-change">0%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card">
+                            <div class="metric-icon">🎯</div>
+                            <div class="metric-content">
+                                <h3>Margine Netto</h3>
+                                <p class="metric-value" id="net-margin">0%</p>
+                                <span class="metric-change" id="margin-change">0%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card">
+                            <div class="metric-icon">🔄</div>
+                            <div class="metric-content">
+                                <h3>ROI</h3>
+                                <p class="metric-value" id="roi">0%</p>
+                                <span class="metric-change" id="roi-change">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-section">
+                    <div class="chart-container">
+                        <h3>Andamento Ricavi</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="revenue-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>Composizione Costi</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="costs-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>Indicatori Finanziari</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="ratios-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3>Liquidità e Debiti</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="liquidity-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Insights Section -->
+                <div class="insights-section">
+                    <h2>Analisi e Raccomandazioni</h2>
+                    <div class="insights-grid" id="insights-container">
+                        <!-- Dynamic insights will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Export Section -->
+                <div class="export-section">
+                    <h2>Esporta Analisi</h2>
+                    <div class="export-buttons">
+                        <button class="export-btn" id="export-pdf">
+                            📄 Esporta PDF
+                        </button>
+                        <button class="export-btn" id="export-excel">
+                            📊 Esporta Excel
+                        </button>
+                        <button class="export-btn" id="export-json">
+                            💾 Esporta Dati
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Loading Section -->
+            <section class="loading-section" id="loading-section" style="display: none;">
+                <div class="loading-card">
+                    <div class="loading-spinner"></div>
+                    <h2>Analizzando il bilancio...</h2>
+                    <p class="loading-text">Estraendo metriche chiave e generando insights</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p class="progress-text" id="progress-text">0%</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/webapp.js"></script>
+</body>
+</html>
