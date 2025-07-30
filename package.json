@@ -1,0 +1,17 @@
+{
+  "name": "nugga",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "mocha tests/**/*.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "mocha": "^11.7.1",
+    "supertest": "^7.1.4"
+  }
+}
