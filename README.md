@@ -16,6 +16,7 @@ BilanciAI Pro è un'applicazione web per analizzare i bilanci aziendali. Consent
 2. Apri `webapp.html` nel tuo browser.
 3. Trascina il file del bilancio o selezionalo manualmente.
 4. Controlla le metriche e le raccomandazioni generate.
+5. Eventuali aggiornamenti sono relativi allo script, basta scaricare da `releases` l'ultimo file e sostituirlo nella cartella
 
 Non sono necessarie dipendenze o compilazioni aggiuntive: tutto il codice è contenuto nei file `webapp.js` e `webapp.css` inclusi.
 
