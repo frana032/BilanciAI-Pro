@@ -1,17 +1,14 @@
 {
-  "name": "nugga",
-  "version": "1.0.0",
+  "name": "bilanciai-pro",
+  "version": "1.1.0",
   "main": "server.js",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "test": "mocha tests/**/*.test.js"
+    "start": "node server.js"
   },
-  "keywords": [],
+  "keywords": ["finance","pwa","analysis"],
   "author": "",
-  "license": "ISC",
-  "description": "",
-  "devDependencies": {
-    "mocha": "^11.7.1",
-    "supertest": "^7.1.4"
-  }
+  "license": "MIT",
+  "description": "BilanciAI Pro - Analisi bilanci offline-first",
+  "devDependencies": {}
 }
