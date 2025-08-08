@@ -129,6 +129,8 @@ class BilanciAI {
                 }
                 this.updateProgress(60, 'Estrazione dati PDF...');
                 financialData = this.parseFinancialData(pdfText);
+                // Attempt invoice extraction
+                await this.tryExtractAndRenderInvoice(pdfText);
             } else if (fileType === 'csv') {
                 const csvData = await this.extractDataFromCSV(file);
                 this.updateProgress(60, 'Analisi dati CSV...');
@@ -144,6 +146,8 @@ class BilanciAI {
                 }
                 this.updateProgress(60, 'Analisi dati TXT...');
                 financialData = this.parseFinancialData(txtData);
+                // Attempt invoice extraction
+                await this.tryExtractAndRenderInvoice(txtData);
             } else if (fileType === 'excel') {
                 const excelData = await this.extractDataFromExcel(file);
                 this.updateProgress(60, 'Analisi dati Excel...');
@@ -211,8 +215,26 @@ class BilanciAI {
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const textContent = await page.getTextContent();
-                        const pageText = textContent.items.map(item => item.str).join(' ');
-                        fullText += pageText + '\n';
+                        // Group items by Y to reconstruct lines
+                        const linesMap = new Map();
+                        const tolerance = 3; // px tolerance for same line
+                        for (const item of textContent.items) {
+                            const y = (item.transform && item.transform[5]) || 0;
+                            // Find existing key within tolerance
+                            let key = null;
+                            for (const k of linesMap.keys()) {
+                                if (Math.abs(k - y) <= tolerance) { key = k; break; }
+                            }
+                            const lineKey = key != null ? key : y;
+                            if (!linesMap.has(lineKey)) linesMap.set(lineKey, []);
+                            const x = (item.transform && item.transform[4]) || 0;
+                            linesMap.get(lineKey).push({ x, str: item.str });
+                        }
+                        // Sort lines by Y descending (pdf coords), then items by X ascending
+                        const sortedLines = Array.from(linesMap.entries())
+                            .sort((a,b) => b[0] - a[0])
+                            .map(([, arr]) => arr.sort((a,b) => a.x - b.x).map(t => t.str).join(' ').trim());
+                        fullText += sortedLines.join('\n') + '\n';
                     }
                     
                     resolve(fullText);
@@ -577,6 +599,10 @@ class BilanciAI {
 
     formatNumber(number) {
         return new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
+    }
+
+    formatCurrency(value) {
+        return `€ ${this.formatNumber(value || 0)}`;
     }
 
     showSection(sectionId) {
@@ -1094,6 +1120,206 @@ class BilanciAI {
         this.calculateDerivedMetrics(data);
         data.historicalData = this.generateRealisticHistoricalData(data);
         return data;
+    }
+
+    async tryExtractAndRenderInvoice(rawText) {
+        try {
+            const invoice = this.extractInvoiceDataFromText(rawText);
+            if (invoice && invoice.confidence >= 2) {
+                this.invoiceData = invoice;
+                this.renderInvoice(invoice);
+                this.showToast('info', 'Fattura rilevata', `Numero: ${invoice.invoiceNumber || 'N/D'} — Totale: ${this.formatCurrency(invoice.total || 0)}`);
+                const section = document.getElementById('invoice-section');
+                if (section) section.style.display = 'block';
+            } else {
+                const section = document.getElementById('invoice-section');
+                if (section) section.style.display = 'none';
+            }
+        } catch (e) {
+            this.log('Errore estrazione fattura: ' + e.message);
+        }
+    }
+
+    extractInvoiceDataFromText(text) {
+        if (!text) return null;
+        const originalText = text;
+        const t = text.toLowerCase();
+        const lines = originalText.split(/\r?\n/);
+        const invoice = {
+            supplierName: null,
+            supplierVat: null,
+            customerName: null,
+            customerVat: null,
+            invoiceNumber: null,
+            date: null,
+            dueDate: null,
+            currency: 'EUR',
+            items: [],
+            subtotal: 0,
+            taxTotal: 0,
+            total: 0,
+            confidence: 0
+        };
+
+        // Basic presence check
+        const hasFatturaWord = /\bfattur[ae]\b/.test(t) || /invoice/.test(t);
+        if (hasFatturaWord) invoice.confidence++;
+
+        // Currency detection
+        if (/\b(eur|euro|€)\b/i.test(originalText)) invoice.currency = 'EUR';
+        else if (/\b(usd|\$)\b/i.test(originalText)) invoice.currency = 'USD';
+
+        // Extract VAT numbers
+        const vatMatch = originalText.match(/(?:(?:p\.?\s*iva)|(?:partita\s*iva))\s*[:#]?\s*([A-Z0-9\.\s]{8,20})/i);
+        if (vatMatch) {
+            invoice.supplierVat = vatMatch[1].replace(/\s|\./g, '').toUpperCase();
+            invoice.confidence++;
+        }
+        const customerVatMatch = originalText.match(/(?:(?:p\.?\s*iva\s*cliente)|(?:iva\s*cliente)|(?:cf\s*cliente)|(?:cod\.?\s*fiscale\s*cliente))\s*[:#]?\s*([A-Z0-9\.\s]{8,20})/i);
+        if (customerVatMatch) {
+            invoice.customerVat = customerVatMatch[1].replace(/\s|\./g, '').toUpperCase();
+        }
+
+        // Names heuristics
+        const supplierMatch = originalText.match(/(?:fornitore|supplier|da)\s*[:\-]?\s*(.+)/i);
+        if (supplierMatch) invoice.supplierName = supplierMatch[1].trim();
+        const customerMatch = originalText.match(/(?:cliente|destinatario|a)\s*[:\-]?\s*(.+)/i);
+        if (customerMatch) invoice.customerName = customerMatch[1].trim();
+
+        // Invoice number
+        const numMatch = originalText.match(/(?:fattura\s*(?:n\.|num\.|numero)?|numero\s*fattura|n\.?\s*fatt\.?|n\.)\s*[:#]?\s*([A-Za-z0-9\-\/]{2,})/i);
+        if (numMatch) {
+            invoice.invoiceNumber = numMatch[1].trim();
+            invoice.confidence++;
+        }
+
+        // Dates
+        const dateRegex = /(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/;
+        const dateMatch = originalText.match(/(?:data\s*(?:fattura)?|emissione)\s*[:#]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i) || originalText.match(dateRegex);
+        if (dateMatch) {
+            invoice.date = dateMatch[1];
+        }
+        const dueMatch = originalText.match(/(?:scadenza|data\s*scadenza|pagamento\s*entro)\s*[:#]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i);
+        if (dueMatch) {
+            invoice.dueDate = dueMatch[1];
+        }
+
+        // Totals
+        const numberPattern = /([€$]?)\s*([+-]?\d{1,3}(?:[\.,]\d{3})*(?:[\.,]\d{2})|\d+(?:[\.,]\d{2})?)/;
+        const findAmountNear = (labelRegex) => {
+            for (const line of lines) {
+                if (labelRegex.test(line.toLowerCase())) {
+                    const m = line.match(numberPattern);
+                    if (m) return this.parseFinancialNumber(m[2]);
+                }
+            }
+            return null;
+        };
+        const subtotal = findAmountNear(/imponibil|subtot|netto\s*imponibile/);
+        const tax = findAmountNear(/iva|imposta|vat/);
+        let total = findAmountNear(/totale\s*(?:fattura|documento)?|da\s*pagare|tot\.?\s*doc/);
+        if (subtotal != null) invoice.subtotal = subtotal;
+        if (tax != null) invoice.taxTotal = tax;
+        if (total != null) invoice.total = total;
+        // Fallbacks
+        if (!invoice.total && invoice.subtotal && invoice.taxTotal) {
+            invoice.total = invoice.subtotal + invoice.taxTotal;
+        }
+        if (!invoice.subtotal && invoice.total && invoice.taxTotal) {
+            invoice.subtotal = Math.max(0, invoice.total - invoice.taxTotal);
+        }
+        if (invoice.total || invoice.subtotal) invoice.confidence++;
+
+        // Items: detect table
+        const headerIdx = lines.findIndex(l => /descrizion|articol|prodotto/.test(l.toLowerCase()) && /(q\.?t|quantit|qty|prezz|unit|importo|totale)/.test(l.toLowerCase()));
+        if (headerIdx >= 0) {
+            for (let i = headerIdx + 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                if (/^totale|^imponibile|^iva/i.test(line)) break;
+                // Split by tabs first, then by multiple spaces
+                let cols = line.split('\t');
+                if (cols.length === 1) cols = line.split(/\s{2,}/);
+                // Build item
+                const item = { description: cols[0], quantity: null, unitPrice: null, taxRate: null, amount: null };
+                // Try to find amount as the last numeric > 0
+                for (let j = cols.length - 1; j >= 1; j--) {
+                    const v = this.parseFinancialNumber(cols[j]);
+                    if (v) { item.amount = v; break; }
+                }
+                // Quantity: look for integer-like small number
+                for (let j = 1; j < cols.length; j++) {
+                    const v = this.parseFinancialNumber(cols[j]);
+                    if (Number.isFinite(v) && v > 0 && Math.abs(v - Math.round(v)) < 1e-6 && v <= 10000) { item.quantity = v; break; }
+                }
+                // Unit price: a number that when multiplied by qty ~ amount
+                if (item.quantity && item.amount) {
+                    let best = null;
+                    for (let j = 1; j < cols.length; j++) {
+                        const v = this.parseFinancialNumber(cols[j]);
+                        if (v && Math.abs(v * item.quantity - item.amount) / (item.amount || 1) < 0.2) { best = v; break; }
+                    }
+                    if (best) item.unitPrice = best;
+                }
+                // Tax rate: percentage in line
+                const perc = line.match(/(\d{1,2}(?:[\.,]\d+)?)\s*%/);
+                if (perc) item.taxRate = parseFloat(perc[1].replace(',', '.'));
+
+                if (item.description && (item.amount || item.unitPrice)) {
+                    invoice.items.push(item);
+                }
+            }
+        }
+        if (invoice.items.length > 0) invoice.confidence++;
+
+        // If no subtotal but items exist, compute subtotal from items
+        if (!invoice.subtotal && invoice.items.length > 0) {
+            const sum = invoice.items.reduce((acc, it) => acc + (Number.isFinite(it.amount) ? it.amount : (it.unitPrice && it.quantity ? it.unitPrice * it.quantity : 0)), 0);
+            if (sum > 0) invoice.subtotal = sum;
+            if (!invoice.total && invoice.taxTotal) invoice.total = sum + invoice.taxTotal;
+        }
+
+        return invoice;
+    }
+
+    renderInvoice(invoice) {
+        try {
+            const summary = document.getElementById('invoice-summary');
+            const itemsTable = document.getElementById('invoice-items');
+            if (!summary || !itemsTable) return;
+
+            const cells = [
+                { label: 'Numero', value: invoice.invoiceNumber || 'N/D' },
+                { label: 'Data', value: invoice.date || 'N/D' },
+                { label: 'Scadenza', value: invoice.dueDate || 'N/D' },
+                { label: 'Fornitore', value: invoice.supplierName || 'N/D' },
+                { label: 'P.IVA Fornitore', value: invoice.supplierVat || 'N/D' },
+                { label: 'Cliente', value: invoice.customerName || 'N/D' },
+                { label: 'P.IVA Cliente', value: invoice.customerVat || 'N/D' },
+                { label: 'Imponibile', value: this.formatCurrency(invoice.subtotal || 0) },
+                { label: 'IVA', value: this.formatCurrency(invoice.taxTotal || 0) },
+                { label: 'Totale', value: this.formatCurrency(invoice.total || 0) }
+            ];
+            summary.innerHTML = cells.map(c => `
+                <div style="background:#111318;border:1px solid #2b3040;border-radius:10px;padding:10px;">
+                    <div style="opacity:.7;font-size:12px;">${c.label}</div>
+                    <div style="font-weight:600;margin-top:4px;">${c.value}</div>
+                </div>
+            `).join('');
+
+            const tbody = itemsTable.querySelector('tbody');
+            tbody.innerHTML = invoice.items.map(it => `
+                <tr>
+                    <td style="padding:10px;border-bottom:1px solid #2b3040;">${it.description || ''}</td>
+                    <td style="padding:10px;border-bottom:1px solid #2b3040;text-align:right;">${it.quantity ?? ''}</td>
+                    <td style="padding:10px;border-bottom:1px solid #2b3040;text-align:right;">${it.unitPrice != null ? this.formatCurrency(it.unitPrice) : ''}</td>
+                    <td style="padding:10px;border-bottom:1px solid #2b3040;text-align:right;">${it.taxRate != null ? it.taxRate + '%' : ''}</td>
+                    <td style="padding:10px;border-bottom:1px solid #2b3040;text-align:right;">${it.amount != null ? this.formatCurrency(it.amount) : ''}</td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            this.log('Errore rendering fattura: ' + e.message);
+        }
     }
 }
 

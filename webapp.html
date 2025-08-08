@@ -165,6 +165,26 @@
                     </div>
                 </div>
 
+                <!-- Invoice Section -->
+                <section class="invoice-section" id="invoice-section" style="display:none; margin-top: 24px;">
+                    <h2>Dati Fattura</h2>
+                    <div id="invoice-summary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 12px 0;"></div>
+                    <div style="overflow:auto; border:1px solid #2b3040; border-radius: 10px;">
+                        <table id="invoice-items" style="width:100%; border-collapse: collapse; min-width: 640px;">
+                            <thead style="background:#151821;">
+                                <tr>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #2b3040;">Descrizione</th>
+                                    <th style="text-align:right; padding:10px; border-bottom:1px solid #2b3040;">Q.tà</th>
+                                    <th style="text-align:right; padding:10px; border-bottom:1px solid #2b3040;">Prezzo</th>
+                                    <th style="text-align:right; padding:10px; border-bottom:1px solid #2b3040;">IVA</th>
+                                    <th style="text-align:right; padding:10px; border-bottom:1px solid #2b3040;">Importo</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+
                 <!-- Export Section -->
                 <div class="export-section">
                     <h2>Esporta Analisi</h2>
