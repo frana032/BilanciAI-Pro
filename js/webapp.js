@@ -10,6 +10,7 @@ class BilanciAI {
         this.setupEventListeners();
         this.registerServiceWorker();
         this.updateStatus();
+        this.restoreFromStorage();
     }
 
     setupEventListeners() {
@@ -132,6 +133,10 @@ class BilanciAI {
                 const csvData = await this.extractDataFromCSV(file);
                 this.updateProgress(60, 'Analisi dati CSV...');
                 financialData = this.parseCSVData(csvData);
+                if (this.isDataEmpty(financialData)) {
+                    await this.tryMappingWizard(csvData);
+                    return;
+                }
             } else if (fileType === 'txt') {
                 const txtData = await this.extractTextFromTXT(file);
                 if (!txtData || txtData.trim().length === 0) {
@@ -143,6 +148,10 @@ class BilanciAI {
                 const excelData = await this.extractDataFromExcel(file);
                 this.updateProgress(60, 'Analisi dati Excel...');
                 financialData = this.parseExcelData(excelData);
+                if (this.isDataEmpty(financialData)) {
+                    await this.tryMappingWizard(excelData);
+                    return;
+                }
             }
 
             if (!financialData) {
@@ -155,6 +164,7 @@ class BilanciAI {
             this.updateMetrics(financialData);
             this.createCharts(financialData);
             this.generateInsights(financialData);
+            this.saveToStorage();
             
             this.updateProgress(100, 'Completato!');
             
@@ -233,18 +243,40 @@ class BilanciAI {
 
     async extractDataFromCSV(file) {
         return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = function(e) {
+            if (window.Papa) {
+                Papa.parse(file, {
+                    delimiter: '', // auto-detect
+                    skipEmptyLines: true,
+                    dynamicTyping: false,
+                    encoding: 'UTF-8',
+                    complete: (results) => {
+                        try {
+                            const rows = results.data.map(row => Array.isArray(row) ? row : Object.values(row));
+                            resolve(rows);
+                        } catch (err) {
+                            reject(new Error('Errore nel parsing CSV: ' + err.message));
+                        }
+                    },
+                    error: (err) => reject(new Error('Errore nella lettura del file CSV: ' + err.message))
+                });
+            } else {
                 try {
-                    const csvText = e.target.result;
-                    const rows = csvText.split('\n').map(row => row.split(','));
-                    resolve(rows);
-                } catch (error) {
-                    reject(new Error('Errore nella lettura del file CSV: ' + error.message));
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const csvText = e.target.result;
+                            const rows = csvText.split('\n').map(row => row.split(','));
+                            resolve(rows);
+                        } catch (error) {
+                            reject(new Error('Errore nella lettura del file CSV: ' + error.message));
+                        }
+                    };
+                    reader.onerror = () => reject(new Error('Errore nella lettura del file'));
+                    reader.readAsText(file, 'UTF-8');
+                } catch (e) {
+                    reject(e);
                 }
-            };
-            reader.onerror = () => reject(new Error('Errore nella lettura del file'));
-            reader.readAsText(file, 'UTF-8');
+            }
         });
     }
 
@@ -430,8 +462,15 @@ class BilanciAI {
 
     parseFinancialNumber(rawValue) {
         if (!rawValue) return 0;
-        let cleanValue = rawValue.toString().replace(/\./g, '').replace(',', '.');
-        return parseFloat(cleanValue) || 0;
+        let stringValue = rawValue.toString().trim();
+        // Handle values with spaces as thousands separators and parentheses for negatives
+        const isNegative = /^\(.*\)$/.test(stringValue) || /^-/.test(stringValue);
+        stringValue = stringValue.replace(/[()]/g, '');
+        // Normalize European format: remove dots as thousands, comma to dot
+        let cleanValue = stringValue.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+        const parsed = parseFloat(cleanValue);
+        if (isNaN(parsed)) return 0;
+        return isNegative ? -Math.abs(parsed) : parsed;
     }
 
     getDefaultFinancialData() {
@@ -817,16 +856,39 @@ class BilanciAI {
         }
 
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+        const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
         
-        doc.setFontSize(20);
-        doc.text('BilanciAI Pro - Analisi Finanziaria', 20, 30);
+        doc.setFontSize(18);
+        doc.text('BilanciAI Pro - Analisi Finanziaria', 40, 50);
         
-        doc.setFontSize(14);
-        doc.text(`Ricavi Totali: €${this.formatNumber(this.currentAnalysis.totalRevenue || 0)}`, 20, 50);
-        doc.text(`EBITDA: €${this.formatNumber(this.currentAnalysis.ebitda || 0)}`, 20, 65);
-        doc.text(`Margine Netto: ${((this.currentAnalysis.netMargin || 0) * 100).toFixed(2)}%`, 20, 80);
-        doc.text(`ROI: ${((this.currentAnalysis.roi || 0) * 100).toFixed(2)}%`, 20, 95);
+        doc.setFontSize(12);
+        doc.text(`Ricavi Totali: €${this.formatNumber(this.currentAnalysis.totalRevenue || 0)}`, 40, 80);
+        doc.text(`EBITDA: €${this.formatNumber(this.currentAnalysis.ebitda || 0)}`, 40, 98);
+        doc.text(`Margine Netto: ${((this.currentAnalysis.netMargin || 0) * 100).toFixed(2)}%`, 40, 116);
+        doc.text(`ROI: ${((this.currentAnalysis.roi || 0) * 100).toFixed(2)}%`, 40, 134);
+
+        // Embed charts if available
+        const charts = [
+            { id: 'revenue-chart', title: 'Andamento Ricavi' },
+            { id: 'costs-chart', title: 'Composizione Costi' },
+            { id: 'ratios-chart', title: 'Indicatori Finanziari' },
+            { id: 'liquidity-chart', title: 'Liquidità e Debiti' }
+        ];
+        let y = 170;
+        charts.forEach((c, idx) => {
+            const canvas = document.getElementById(c.id);
+            if (canvas) {
+                const imgData = canvas.toDataURL('image/png', 1.0);
+                doc.setFontSize(12);
+                doc.text(c.title, 40, y);
+                doc.addImage(imgData, 'PNG', 40, y + 10, 515, 250);
+                y += 280;
+                if (y > 720 && idx < charts.length - 1) {
+                    doc.addPage();
+                    y = 60;
+                }
+            }
+        });
         
         doc.save('analisi-finanziaria.pdf');
         this.showToast('success', 'Successo', 'Report PDF esportato con successo!');
@@ -872,6 +934,166 @@ class BilanciAI {
         link.click();
         
         this.showToast('success', 'Successo', 'Dati JSON esportati con successo!');
+    }
+
+    saveToStorage() {
+        try {
+            if (this.currentAnalysis) {
+                localStorage.setItem('bilanciai.currentAnalysis', JSON.stringify(this.currentAnalysis));
+            }
+        } catch (e) {
+            console.warn('Impossibile salvare lo stato locale:', e);
+        }
+    }
+
+    restoreFromStorage() {
+        try {
+            const saved = localStorage.getItem('bilanciai.currentAnalysis');
+            if (saved) {
+                const data = JSON.parse(saved);
+                this.currentAnalysis = data;
+                this.updateMetrics(data);
+                this.createCharts(data);
+                this.generateInsights(data);
+                this.showSection('analysis-section');
+                this.showToast('info', 'Ripristino', 'Ultima analisi ripristinata.');
+            }
+        } catch (e) {
+            console.warn('Impossibile ripristinare lo stato locale:', e);
+        }
+    }
+
+    isDataEmpty(data) {
+        const keys = ['totalRevenue','totalCosts','netIncome','ebitda','currentAssets','currentLiabilities','totalAssets','totalEquity','amortization'];
+        return keys.every(k => (data[k] || 0) === 0);
+        }
+
+    log(message) {
+        try {
+            const logSection = document.getElementById('log-section');
+            const container = document.getElementById('log-container');
+            if (!container) return;
+            if (logSection && logSection.style.display === 'none') {
+                logSection.style.display = 'block';
+            }
+            const time = new Date().toISOString();
+            container.textContent += `[${time}] ${message}\n`;
+            container.scrollTop = container.scrollHeight;
+        } catch(_) {}
+    }
+
+    async tryMappingWizard(rows) {
+        // Expect first row as header
+        const header = Array.isArray(rows[0]) ? rows[0].map(h => h && h.toString ? h.toString() : String(h)) : [];
+        if (!header || header.length === 0) {
+            this.showToast('warning', 'Mappatura', 'Impossibile avviare la mappatura senza intestazioni.');
+            this.showSection('upload-section');
+            return;
+        }
+        const mapping = await this.showMappingModal(header);
+        if (!mapping) {
+            this.showSection('upload-section');
+            return;
+        }
+        const data = this.applyColumnMapping(header, rows.slice(1), mapping);
+        this.currentAnalysis = data;
+        this.updateMetrics(data);
+        this.createCharts(data);
+        this.generateInsights(data);
+        this.saveToStorage();
+        this.showSection('analysis-section');
+        this.showToast('success', 'Successo', 'Mappatura applicata e analisi generata.');
+    }
+
+    showMappingModal(headers) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('mapping-modal');
+            const fields = document.getElementById('mapping-fields');
+            const cancelBtn = document.getElementById('mapping-cancel');
+            const applyBtn = document.getElementById('mapping-apply');
+
+            const fieldDefs = [
+                { key: 'totalRevenue', label: 'Ricavi Totali' },
+                { key: 'totalCosts', label: 'Costi Totali' },
+                { key: 'netIncome', label: 'Utile Netto' },
+                { key: 'amortization', label: 'Ammortamenti' },
+                { key: 'currentAssets', label: 'Attivo Circolante' },
+                { key: 'currentLiabilities', label: 'Debiti Correnti' },
+                { key: 'totalAssets', label: 'Totale Attivo' },
+                { key: 'totalEquity', label: 'Patrimonio Netto' }
+            ];
+
+            fields.innerHTML = '';
+            fieldDefs.forEach(fd => {
+                const wrapper = document.createElement('div');
+                const id = `map-${fd.key}`;
+                wrapper.innerHTML = `
+                    <label for="${id}" style="display:block;margin-bottom:6px;">${fd.label}</label>
+                    <select id="${id}" style="width:100%; padding:8px; border-radius:8px; background:#111318; color:#e6e6e6; border:1px solid #2a2f3a;">
+                        <option value="">(Nessuna)</option>
+                        ${headers.map((h, idx) => `<option value="${idx}">${h}</option>`).join('')}
+                    </select>
+                `;
+                fields.appendChild(wrapper);
+            });
+
+            const cleanup = () => {
+                modal.style.display = 'none';
+                cancelBtn.onclick = null;
+                applyBtn.onclick = null;
+            };
+
+            cancelBtn.onclick = () => {
+                cleanup();
+                resolve(null);
+            };
+            applyBtn.onclick = () => {
+                const mapping = {};
+                fieldDefs.forEach(fd => {
+                    const sel = document.getElementById(`map-${fd.key}`);
+                    mapping[fd.key] = sel && sel.value !== '' ? parseInt(sel.value, 10) : null;
+                });
+                cleanup();
+                resolve(mapping);
+            };
+
+            modal.style.display = 'flex';
+        });
+    }
+
+    applyColumnMapping(headers, dataRows, mapping) {
+        const data = {
+            totalRevenue: 0,
+            totalCosts: 0,
+            netIncome: 0,
+            ebitda: 0,
+            currentAssets: 0,
+            currentLiabilities: 0,
+            totalAssets: 0,
+            totalEquity: 0,
+            amortization: 0
+        };
+        const sumColumn = (idx) => {
+            if (idx == null) return 0;
+            let sum = 0;
+            for (const row of dataRows) {
+                if (!row) continue;
+                const val = this.parseFinancialNumber(row[idx]);
+                sum += isNaN(val) ? 0 : val;
+            }
+            return sum;
+        };
+        data.totalRevenue = sumColumn(mapping.totalRevenue);
+        data.totalCosts = sumColumn(mapping.totalCosts);
+        data.netIncome = sumColumn(mapping.netIncome);
+        data.amortization = sumColumn(mapping.amortization);
+        data.currentAssets = sumColumn(mapping.currentAssets);
+        data.currentLiabilities = sumColumn(mapping.currentLiabilities);
+        data.totalAssets = sumColumn(mapping.totalAssets);
+        data.totalEquity = sumColumn(mapping.totalEquity);
+        this.calculateDerivedMetrics(data);
+        data.historicalData = this.generateRealisticHistoricalData(data);
+        return data;
     }
 }
 

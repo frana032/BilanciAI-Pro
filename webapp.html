@@ -200,11 +200,31 @@
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container"></div>
 
+    <!-- Parsing Log Section -->
+    <section class="log-section" id="log-section" style="display:none; margin: 16px;">
+        <h3>Dettagli parsing</h3>
+        <pre id="log-container" style="background:#0f0f12;color:#c9d1d9;padding:12px;border-radius:8px;max-height:220px;overflow:auto;"></pre>
+    </section>
+
+    <!-- Mapping Modal -->
+    <div id="mapping-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index: 9999; align-items:center; justify-content:center;">
+        <div style="background:#1e1e24; color:#fff; padding:20px; border-radius:12px; width: min(680px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,0.4);">
+            <h3 style="margin-top:0;">Mappa le colonne ai campi finanziari</h3>
+            <p style="opacity:0.85;">Seleziona la colonna corrispondente per ogni metrica.</p>
+            <div id="mapping-fields" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin:16px 0;"></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                <button id="mapping-cancel" class="export-btn" style="background:#333;">Annulla</button>
+                <button id="mapping-apply" class="export-btn">Applica mappatura</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="js/webapp.js"></script>
 </body>
 </html>
